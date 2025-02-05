@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:latest
+    container_name: zoover-db
+    restart: always
+    environment:
+      POSTGRES_USER: zoover
+      POSTGRES_PASSWORD: testtest
+      POSTGRES_DB: zoover
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+
