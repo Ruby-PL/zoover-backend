@@ -1,117 +1,105 @@
-from sqlalchemy import Column, String, Integer, Float, ForeignKey, JSON, DateTime
-from sqlalchemy.orm import relationship
-from datetime import datetime
-from db import Base
+from sqlalchemy import create_engine, Column, String, Integer, Float, ForeignKey, Table, JSON, DateTime, func
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, sessionmaker
 
-# Country Table
-class Country(Base):
-    __tablename__ = "countries"
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    cities = relationship("City", back_populates="country")
+Base = declarative_base()
 
-# City Table
-class City(Base):
-    __tablename__ = "cities"
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    country_id = Column(String, ForeignKey("countries.id"))
-    country = relationship("Country", back_populates="cities")
-    regions = relationship("Region", back_populates="city")
+# Many-to-Many relation between Accommodation and Features
+accommodation_features = Table(
+    'accommodation_features', Base.metadata,
+    Column('accommodation_id', String, ForeignKey('accommodations.id'), primary_key=True),
+    Column('feature_id', String, ForeignKey('features.id'), primary_key=True)
+)
 
-# Region Table
-class Region(Base):
-    __tablename__ = "regions"
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    city_id = Column(String, ForeignKey("cities.id"))
-    city = relationship("City", back_populates="regions")
-    accommodations = relationship("Accommodation", back_populates="region")
-
-# Accommodation Table
 class Accommodation(Base):
-    __tablename__ = "accommodations"
+    __tablename__ = 'accommodations'
+    
     id = Column(String, primary_key=True)
-    type = Column(String)
-    photos_count = Column(Integer)
-    popularity_score = Column(Float)
-    booking_price = Column(Integer)
-    booking_days = Column(Integer)
-    departure_date = Column(DateTime)
-    airport = Column(String)
-
-    region_id = Column(String, ForeignKey("regions.id"))
-    region = relationship("Region", back_populates="accommodations")
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    name = Column(String)
+    stars = Column(Integer)
+    address = Column(String)
+    zipcode = Column(String)
+    phone = Column(String)
+    email = Column(String)
+    website = Column(String)
+    country_id = Column(String, ForeignKey('countries.id'))
+    city_id = Column(String, ForeignKey('cities.id'))
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
-    facts = relationship("AccommodationFact", back_populates="accommodation", cascade="all, delete-orphan")
-    reviews = relationship("Review", back_populates="accommodation", cascade="all, delete-orphan")
-    travel_parties = relationship("AccommodationTravelParty", back_populates="accommodation")
+    reviews = relationship("Review", back_populates="accommodation")
+    features = relationship("Feature", secondary=accommodation_features, back_populates="accommodations")
+    weighted_scores = relationship("WeightedScore", back_populates="accommodation")
 
-# Accommodation Facts Table
-class AccommodationFact(Base):
-    __tablename__ = "accommodation_facts"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    accommodation_id = Column(String, ForeignKey("accommodations.id", ondelete="CASCADE"))
-    key = Column(String)
-    value = Column(String)
-    accommodation = relationship("Accommodation", back_populates="facts")
 
-# Travel Party Table
-class TravelParty(Base):
-    __tablename__ = "travel_parties"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, unique=True, nullable=False)
-    reviews = relationship("Review", back_populates="travel_party")
-    accommodations = relationship("AccommodationTravelParty", back_populates="travel_party")
-
-# Many-to-Many Table: Accommodation <-> Travel Party
-class AccommodationTravelParty(Base):
-    __tablename__ = "accommodation_travel_party"
-    accommodation_id = Column(String, ForeignKey("accommodations.id"), primary_key=True)
-    travel_party_id = Column(Integer, ForeignKey("travel_parties.id"), primary_key=True)
+class Feature(Base):
+    __tablename__ = 'features'
     
-    accommodation = relationship("Accommodation", back_populates="travel_parties")
-    travel_party = relationship("TravelParty", back_populates="accommodations")
+    id = Column(String, primary_key=True)
+    name = Column(String)
+    accommodations = relationship("Accommodation", secondary=accommodation_features, back_populates="features")
 
-# Review Table
+
 class Review(Base):
-    __tablename__ = "reviews"
+    __tablename__ = 'reviews'
+    
     id = Column(String, primary_key=True)
-    accommodation_id = Column(String, ForeignKey("accommodations.id", ondelete="CASCADE"))
     title = Column(String)
     user_name = Column(String)
-    
-    travel_party_id = Column(Integer, ForeignKey("travel_parties.id"))
-    travel_party = relationship("TravelParty", back_populates="reviews")
-
-    travel_date = Column(String)
+    user_email = Column(String)
+    user_ip_address = Column(String)
+    travel_party = Column(String)
+    travel_date = Column(DateTime)
     general_score = Column(Float)
     status = Column(String)
-    review_text = Column(String)
+    text = Column(String)
     locale = Column(String)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-
+    source = Column(String)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    accommodation_id = Column(String, ForeignKey('accommodations.id'))
+    
     accommodation = relationship("Accommodation", back_populates="reviews")
-    aspect_scores = relationship("ReviewAspectScore", back_populates="review")
+    score_aspects = relationship("ReviewScoreAspect", back_populates="review")
 
-# Aspect Table
-class Aspect(Base):
-    __tablename__ = "aspects"
+
+class ReviewScoreAspect(Base):
+    __tablename__ = 'review_score_aspects'
+    
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, unique=True, nullable=False)
+    review_id = Column(String, ForeignKey('reviews.id'))
+    aspect = Column(String)
+    score = Column(Float)
+    
+    review = relationship("Review", back_populates="score_aspects")
 
-# Many-to-Many Table: Review <-> Aspect Scores
-class ReviewAspectScore(Base):
-    __tablename__ = "review_aspect_scores"
-    review_id = Column(String, ForeignKey("reviews.id"), primary_key=True)
-    aspect_id = Column(Integer, ForeignKey("aspects.id"), primary_key=True)
-    score = Column(Float, nullable=False)
 
-    review = relationship("Review", back_populates="aspect_scores")
-    aspect = relationship("Aspect")
+class WeightedScore(Base):
+    __tablename__ = 'weighted_scores'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    accommodation_id = Column(String, ForeignKey('accommodations.id'))
+    aspect = Column(String)
+    score = Column(Float)
+    
+    accommodation = relationship("Accommodation", back_populates="weighted_scores")
+
+
+class Country(Base):
+    __tablename__ = 'countries'
+    
+    id = Column(String, primary_key=True)
+    name = Column(String)
+    cities = relationship("City", back_populates="country")
+
+
+class City(Base):
+    __tablename__ = 'cities'
+    
+    id = Column(String, primary_key=True)
+    name = Column(String)
+    country_id = Column(String, ForeignKey('countries.id'))
+    
+    country = relationship("Country", back_populates="cities")
+    accommodations = relationship("Accommodation", back_populates="city")
 
