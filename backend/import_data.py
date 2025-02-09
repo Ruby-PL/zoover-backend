@@ -102,7 +102,7 @@ def import_accommodations(data):
 
             accommodation = Accommodation(
                 id=item["id"],
-                name=item["type"],
+                name=item["name"],
                 type=item["type"],
                 country_id=country_id,
                 region_id=region_id,
